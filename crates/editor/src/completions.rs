@@ -46,6 +46,15 @@ impl Editor {
         self.open_or_update_completions_menu(None, None, false, window, cx);
     }
 
+    pub fn show_import_completions(
+        &mut self,
+        _: &ShowImportCompletions,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.open_or_update_completions_menu(None, None, false, window, cx);
+    }
+
     pub fn confirm_completion(
         &mut self,
         action: &ConfirmCompletion,

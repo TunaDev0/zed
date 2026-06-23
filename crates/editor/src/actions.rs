@@ -826,10 +826,12 @@ actions!(
         SelectUp,
         /// Shows code completion suggestions at the cursor position.
         ShowCompletions,
-        /// Shows the system character palette.
+        /// Shows system character palette.
         ShowCharacterPalette,
         /// Shows edit prediction at cursor.
         ShowEditPrediction,
+        /// Shows import completions for components.
+        ShowImportCompletions,
         /// Shows signature help for the current function.
         ShowSignatureHelp,
         /// Shows word completions.
