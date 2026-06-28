@@ -8610,6 +8610,74 @@ impl Editor {
         }
     }
 
+    pub fn insert_console_log(
+        &mut self,
+        _: &InsertConsoleLog,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.read_only(cx) {
+            return;
+        }
+
+        let display_snapshot = self.display_snapshot(cx);
+        let buffer_snapshot = self.buffer.read(cx).snapshot(cx);
+
+        let edits: Vec<_> = self
+            .selections
+            .all::<Point>(&display_snapshot)
+            .iter()
+            .filter_map(|selection| {
+                if selection.is_empty() {
+                    return None;
+                }
+
+                let cursor = selection.head();
+                let selected_text = buffer_snapshot
+                    .text_for_range(selection.start..selection.end)
+                    .collect::<String>();
+
+                let cursor_point = Point::new(cursor.row, cursor.column);
+                let enclosing_func_name = buffer_snapshot
+                    .symbols_containing(cursor_point, None)
+                    .and_then(|(_, symbols)| {
+                        symbols.iter().rev().find_map(|symbol| {
+                            let text = symbol.text.as_str();
+                            if symbol.name_ranges.is_empty() || text.is_empty() {
+                                return None;
+                            }
+                            let name = &text[symbol.name_ranges[0].clone()];
+                            let name = name.trim();
+                            if name.is_empty() {
+                                None
+                            } else {
+                                Some(name.to_string())
+                            }
+                        })
+                    })
+                    .unwrap_or_default();
+
+                let log_line = format!(
+                    "\nconsole.log(\"🚀 ~ {enclosing_func_name} ~ {selected_text}:\", {selected_text})",
+                );
+
+                let row_len = buffer_snapshot.line_len(MultiBufferRow(cursor.row));
+                let insert_point = Point::new(cursor.row, row_len);
+
+                Some((insert_point..insert_point, log_line))
+            })
+            .collect();
+
+        if edits.is_empty() {
+            return;
+        }
+
+        self.transact(window, cx, |this, window, cx| {
+            this.edit(edits, cx);
+        });
+    }
+
+
     pub fn insert_uuid_v4(
         &mut self,
         _: &InsertUuidV4,

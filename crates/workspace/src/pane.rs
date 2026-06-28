@@ -315,6 +315,8 @@ actions!(
         TogglePinTab,
         /// Unpins all tabs in the pane.
         UnpinAllTabs,
+        /// Locks the pane so new files open elsewhere.
+        TogglePaneLock,
     ]
 );
 
@@ -350,6 +352,7 @@ pub enum Event {
         item: Box<dyn WeakItemHandle>,
         save_intent: SaveIntent,
     },
+    LockChanged,
 }
 
 impl fmt::Debug for Event {
@@ -386,6 +389,7 @@ impl fmt::Debug for Event {
                 .finish(),
             Event::ItemPinned => f.write_str("ItemPinned"),
             Event::ItemUnpinned => f.write_str("ItemUnpinned"),
+            Event::LockChanged => f.write_str("LockChanged"),
         }
     }
 }
@@ -453,6 +457,7 @@ pub struct Pane {
     welcome_page: Option<Entity<crate::welcome::WelcomePage>>,
 
     pub in_center_group: bool,
+    is_locked: bool,
 }
 
 pub struct ActivationHistoryEntry {
@@ -624,7 +629,17 @@ impl Pane {
             project_item_restoration_data: HashMap::default(),
             welcome_page: None,
             in_center_group: false,
+            is_locked: false,
         }
+    }
+
+    pub fn is_locked(&self) -> bool {
+        self.is_locked
+    }
+
+    pub fn toggle_lock(&mut self, _window: &mut Window, cx: &mut Context<Pane>) {
+        self.is_locked = !self.is_locked;
+        cx.emit(Event::LockChanged);
     }
 
     fn alternate_file(&mut self, _: &AlternateFile, window: &mut Window, cx: &mut Context<Pane>) {
@@ -3235,6 +3250,18 @@ impl Pane {
                                 }
                             })
                         };
+                        let lock_pane_entry = |menu: ContextMenu| {
+                            menu.separator().map(|this| {
+                                let pane_locked = pane.read(cx).is_locked();
+                                this.entry(
+                                    if pane_locked { "Unlock Pane" } else { "Lock Pane" },
+                                    Some(TogglePaneLock.boxed_clone()),
+                                    window.handler_for(&pane, move |pane, window, cx| {
+                                        pane.toggle_lock(window, cx);
+                                    }),
+                                )
+                            })
+                        };
 
                         if capability != Capability::ReadOnly {
                             let read_only_label = if capability.editable() {
@@ -3344,6 +3371,7 @@ impl Pane {
                                     })
                                 })
                                 .map(pin_tab_entries)
+                                .map(lock_pane_entry)
                                 .when(visible_in_project_panel, |menu| {
                                     menu.entry(
                                         "Reveal In Project Panel",
@@ -3377,6 +3405,7 @@ impl Pane {
                                 });
                         } else {
                             menu = menu.map(pin_tab_entries);
+                            menu = menu.map(lock_pane_entry);
                         }
                     };
 
@@ -4277,6 +4306,22 @@ fn default_render_tab_bar_buttons(
                     )
                 })
         })
+        .child({
+            let locked = pane.is_locked();
+            IconButton::new("toggle_lock", IconName::LockOutlined)
+                .icon_size(IconSize::Small)
+                .toggle_state(locked)
+                .selected_icon(IconName::LockOutlined)
+                .on_click(cx.listener(|pane, _, window, cx| {
+                    pane.toggle_lock(window, cx);
+                }))
+                .tooltip({
+                    let locked = locked;
+                    move |_window, cx| {
+                        Tooltip::text(if locked { "Unlock Pane" } else { "Lock Pane" })(_window, cx)
+                    }
+                })
+        })
         .into_any_element()
         .into();
     (None, right_children)
@@ -4375,6 +4420,9 @@ impl Render for Pane {
             .on_action(cx.listener(Self::swap_item_right))
             .on_action(cx.listener(Self::toggle_pin_tab))
             .on_action(cx.listener(Self::unpin_all_tabs))
+            .on_action(cx.listener(|pane, _: &TogglePaneLock, window, cx| {
+                pane.toggle_lock(window, cx);
+            }))
             .when(PreviewTabsSettings::get_global(cx).enabled, |this| {
                 this.on_action(
                     cx.listener(|pane: &mut Pane, _: &TogglePreviewTab, window, cx| {

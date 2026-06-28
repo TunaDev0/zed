@@ -634,7 +634,7 @@ fn timestamp_format() -> &'static [BorrowedFormatItem<'static>] {
     })
 }
 
-fn format_timestamp(timestamp: i64) -> String {
+pub(crate) fn format_timestamp(timestamp: i64) -> String {
     let Ok(datetime) = OffsetDateTime::from_unix_timestamp(timestamp) else {
         return "Unknown".to_string();
     };
@@ -1688,7 +1688,7 @@ impl GitGraph {
 
     /// Checks whether a ref name from git's `%D` decoration
     ///  format refers to the currently checked-out branch.
-    fn is_head_ref(ref_name: &str, head_branch_name: &Option<SharedString>) -> bool {
+    pub(crate) fn is_head_ref(ref_name: &str, head_branch_name: &Option<SharedString>) -> bool {
         head_branch_name.as_ref().is_some_and(|head| {
             ref_name == head.as_ref() || ref_name.strip_prefix("HEAD -> ") == Some(head.as_ref())
         })

@@ -4543,8 +4543,9 @@ impl Workspace {
         window: &mut Window,
         cx: &mut App,
     ) {
+        let pane = self.first_unlocked_pane(cx).clone();
         self.add_item(
-            self.active_pane.clone(),
+            pane,
             item,
             destination_index,
             false,
@@ -4656,12 +4657,8 @@ impl Workspace {
         cx: &mut App,
     ) -> Task<anyhow::Result<Box<dyn ItemHandle>>> {
         let pane = pane.unwrap_or_else(|| {
-            self.last_active_center_pane.clone().unwrap_or_else(|| {
-                self.panes
-                    .first()
-                    .expect("There must be an active pane")
-                    .downgrade()
-            })
+            self.first_unlocked_pane(cx)
+                .downgrade()
         });
 
         let project_path = path.into();
@@ -5681,6 +5678,14 @@ impl Workspace {
                 cx.notify();
             }
             pane::Event::ItemPinned | pane::Event::ItemUnpinned => {}
+            pane::Event::LockChanged => {
+                if pane.read(cx).is_locked() {
+                    let unlocked_count = self.panes.iter().filter(|p| !p.read(cx).is_locked()).count();
+                    if unlocked_count == 0 {
+                        pane.update(cx, |pane, cx| pane.toggle_lock(window, cx));
+                    }
+                }
+            }
         }
 
         if serialize_workspace {
@@ -5826,6 +5831,13 @@ impl Workspace {
 
     pub fn active_pane(&self) -> &Entity<Pane> {
         &self.active_pane
+    }
+
+    pub fn first_unlocked_pane(&self, cx: &App) -> &Entity<Pane> {
+        self.panes
+            .iter()
+            .find(|p| !p.read(cx).is_locked())
+            .unwrap_or_else(|| self.active_pane())
     }
 
     pub fn focused_pane(&self, window: &Window, cx: &App) -> Entity<Pane> {

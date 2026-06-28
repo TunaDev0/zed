@@ -630,6 +630,8 @@ actions!(
         Indent,
         /// Inserts a UUID v4 at cursor position.
         InsertUuidV4,
+        /// Inserts a console.log statement for the selected variable on the next line.
+        InsertConsoleLog,
         /// Inserts a UUID v7 at cursor position.
         InsertUuidV7,
         /// Joins the current line with the next line.
